@@ -1,0 +1,10 @@
+Package: __TAG_NAME__
+Version: __TAG_VERSION__
+Section: Applications
+Priority: extra
+Architecture: __TAG_ARCHITECTURE__
+Source: __TAG_NAME__
+Maintainer: __TAG_VENDOR__
+Description: __TAG_DESCRIPTION__
+Pre-Depends: adobeair (>= __TAG_MIN_RUNTIME_VERSION__)
+Installed-Size: __TAG_APPINSTALL_SIZE__

@@ -1,0 +1,777 @@
+#!/bin/sh
+#---------------------------------------------
+#   xdg-autostart
+#
+#   Utility script to register an application to automatically startup of the desktop environment.
+#
+#   Refer to the usage() function below for usage.
+#
+#   LICENSE:
+#
+#---------------------------------------------
+
+manualpage()
+{
+cat << _MANUALPAGE
+Name
+
+xdg-autostart - registers an application to automatically startup of the desktop environment.
+
+Synopsis
+
+xdg-autostart { query | register | unregister | uninstall } { file }
+
+xdg-autostart { --help | --manual | --version }
+
+Description
+
+xdg-autostart ...
+
+Options
+
+query
+    Query auto start status
+register
+    Register for auto start on login
+unregister
+    Unregister for auto start on login
+uninstall
+    Delete all desktop entries for the file.
+--help
+    Show command synopsis.
+--manual
+    Show this manualpage.
+--version
+    Show the xdgunregistertils version information.
+
+Exit Codes
+
+An exit code of 0 indicates success while a non-zero exit code indicates
+failure. The following failure codes can be returned:
+
+1
+    Error in command line syntax.
+2
+    One of the files passed on the command line did not exist.
+3
+    A required tool could not be found.
+4
+    The action failed.
+
+Examples
+
+_MANUALPAGE
+}
+
+usage()
+{
+cat << _USAGE
+xdg-autostart - registers an application to automatically startup of the desktop environment.
+
+Synopsis
+
+xdg-autostart { query | register | unregister | uninstall } { file }
+
+xdg-autostart { --help | --manual | --version }
+
+_USAGE
+}
+
+#@xdgunregistertils-common@
+
+#----------------------------------------------------------------------------
+#   Common utility functions included in all XDG wrapper scripts
+#----------------------------------------------------------------------------
+
+DEBUG()
+{
+  [ -z "${XDG_UTILS_DEBUG_LEVEL}" ] && return 0;
+  [ ${XDG_UTILS_DEBUG_LEVEL} -lt $1 ] && return 0;
+  shift
+  echo "$@" >&2
+}
+
+#-------------------------------------------------------------
+# Exit script on successfully completing the desired operation
+
+exit_success()
+{
+    if [ $# -gt 0 ]; then
+        echo "$@"
+        echo
+    fi
+
+    exit 0
+}
+
+
+#-----------------------------------------
+# Exit script on malformed arguments, not enough arguments
+# or missing required option.
+# prints usage information
+
+exit_failure_syntax()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+        echo "Try 'xdg-autostart --help' for more information." >&2
+    else
+        usage
+        echo "Use 'man xdg-autostart' or 'xdg-autostart --manual' for additional info."
+    fi
+
+    exit 1
+}
+
+#-------------------------------------------------------------
+# Exit script on missing file specified on command line
+
+exit_failure_file_missing()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+    fi
+
+    exit 2
+}
+
+#-------------------------------------------------------------
+# Exit script on failure to locate necessary tool applications
+
+exit_failure_operation_impossible()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+    fi
+
+    exit 3
+}
+
+#-------------------------------------------------------------
+# Exit script on failure returned by a tool application
+
+exit_failure_operation_failed()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+    fi
+
+    exit 4
+}
+
+#------------------------------------------------------------
+# Exit script on insufficient permission to read a specified file
+
+exit_failure_file_permission_read()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+    fi
+
+    exit 5
+}
+
+#------------------------------------------------------------
+# Exit script on insufficient permission to read a specified file
+
+exit_failure_file_permission_write()
+{
+    if [ $# -gt 0 ]; then
+        echo "xdg-autostart: $@" >&2
+    fi
+
+    exit 6
+}
+
+check_input_file()
+{
+    if [ -e "$1" ]; then
+        :
+    else
+        exit_failure_file_missing "file '$1' does not exist"
+    fi
+    if [ -r "$1" ]; then
+        exit_failure_file_permission_read "no permission to read file '$1'"
+    fi
+}
+
+#----------------------------------------
+# Checks for shared commands, e.g. --help
+
+check_common_commands()
+{
+    while [ $# -gt 0 ] ; do
+        parm="$1"
+        shift
+
+        case "$parm" in
+            --help)
+            usage
+            echo "Use 'man xdg-autostart' or 'xdg-autostart --manual' for additional info."
+            exit_success
+            ;;
+
+            --manual)
+            manualpage
+            exit_success
+            ;;
+
+            --version)
+            echo "xdg-autostart 1.0.0"
+            exit_success
+            ;;
+        esac
+    done
+}
+
+check_common_commands "$@"
+
+[ -z "${XDG_UTILS_DEBUG_LEVEL}" ] && unset XDG_UTILS_DEBUG_LEVEL;
+if [ ${XDG_UTILS_DEBUG_LEVEL-0} -lt 1 ]; then
+    # Be silent
+    xdg_redirect_output=" > /dev/null 2> /dev/null"
+else
+    # All output to stderr
+    xdg_redirect_output=" >&2"
+fi
+
+#--------------------------------------
+# Checks for known desktop environments
+# set variable DE to the desktop environments name, lowercase
+
+detectDE()
+{ 
+    if [ x"$KDE_FULL_SESSION" = x"true" ] || [ x"$DESKTOP_SESSION" = x"kde" ] || [ x"$DESKTOP_SESSION" = x"kde4" ]; then DE=kde;
+	if [ x"$KDE_SESSION_VERSION" = x"4" ]; then DE=kde4
+	fi
+    elif [ x"$GNOME_DESKTOP_SESSION_ID" != x"" ] || [ x"$DESKTOP_SESSION" = x"gnome" ]; then DE=gnome;
+    elif xprop -root _DT_SAVE_MODE | grep ' = \"xfce4\"$' >/dev/null 2>&1; then DE=xfce
+    else DE=generic
+    fi
+}
+
+#--------------------------------------
+# gets the path of the desktop entry file for the passed app ($1) into the DesktopEntryFilePath variable
+getDesktopEntryFilePathInternal()
+{
+    DesktopEntryFilePath=
+
+    autostartDirs="$2"
+    fileFound=false
+
+    old_IFS="$IFS"
+    IFS=":"
+
+    for autostartDir in $autostartDirs
+    do
+        # if more than one files found, we will only take the first one
+        DesktopEntryFilePath=`grep -E -l "^\s*Exec\s*=\s*\"?${1}\"?\s*$" "$autostartDir"/*.desktop | head -n 1`
+
+        if [ -n "$DesktopEntryFilePath" ]; then
+            fileFound=true
+            break
+        fi
+    done
+
+    IFS="$old_IFS"
+
+    if [ "$fileFound" = true ]; then
+        retval=0
+    else 
+        retval=1
+    fi
+
+    return "$retval"
+}
+
+#--------------------------------------
+# gets the path of the desktop entry file for the passed app ($1) into the DesktopEntryFilePath variable
+getDesktopEntryFilePath()
+{
+	filePath="$1"
+	if [ "$2" = KDE3 ]; then
+		autoStartDirs=`getAutostartDirsForKDE3`
+	elif [ "$2" = "KDE4" ]; then
+		autoStartDirs=`getAutostartDirsForKDE4`
+	else
+		autoStartDirs=`getAutostartDirs`
+	fi
+	getDesktopEntryFilePathInternal "$filePath" "$autoStartDirs"
+ }
+
+# removes leading and trailing white spaces
+trimSpaces()
+{
+    echo "$1" | sed -e 's/^\s*//' -e 's/\s*$//'
+}
+
+# removes leading and trailing quotes ("")
+trimQuotes()
+{
+    echo "$1" | sed -e 's/^\"//' -e 's/\"$//'
+}
+
+# removes leading and trailing single quotes ('')
+trimSingleQuotes()
+{
+    echo "$1" | sed -e "s/^'//" -e "s/'$//"
+}
+
+
+#--------------------------------------
+# gets the value of the passed key in the passed desktop entry file path
+# changes the variable DesktopEntryKeyVal to reflect the value
+desktopEntryFileGetKeyValue()
+{
+    DesktopEntryKeyVal=
+    result=1; 
+
+    searchResult=`grep -E "^\s*$2\s*=" "$1"`
+    if [ $? = 0 ]; then
+        DesktopEntryKeyVal=`echo "$searchResult" | head -n 1 | cut -f 2 -d "="`
+	DesktopEntryKeyVal=`trimSpaces "$DesktopEntryKeyVal"`
+	DesktopEntryKeyVal=`trimQuotes "$DesktopEntryKeyVal"`
+    	if [ "$DE" = "xfce" ]; then
+		DesktopEntryKeyVal=`trimSingleQuotes "$DesktopEntryKeyVal"`
+	fi
+	result=0
+    fi
+   
+    return "$result"
+}
+
+#--------------------------------------
+# reads the desktop entry contents into a temp file
+# set the passed key value pair
+# returns the temp file path in variable DesktopEntryTempPath
+desktopEntryFileSetKeyValue()
+{
+    DEFilePath="$1"
+    key="$2"
+    val="$3"
+   
+    DesktopEntryTempPath="`mktemp /tmp/air.autostart..XXXXXX`"
+    sed -e "s/^\s*${key}\s*=.*/${key}=${val}/" "$DEFilePath" > "$DesktopEntryTempPath"
+
+    if grep -E "^\s*${key}\s*=.*" "$DEFilePath" >/dev/null ; then
+        :
+    else
+        echo "${key}=${val}" >> "$DesktopEntryTempPath"
+    fi
+}
+
+
+#--------------------------------------
+# creates the contents of a desktop entry (a .desktop file) in a temp file
+# returns the temp file path
+desktopEntry()
+{
+    DesktopEntryTempPath=
+
+    appInstallDir=`dirname "$1"`;
+    fileName=`basename "$1"`;
+
+    # escape the exec path
+    execFilePath=`echo "$1" |  sed -e 's/[\]/\\\\\\\\/g' -e 's/[$]/\\\\\$/g' -e 's/["]/\\\\\"/g' -e 's/\`/\\\\\`/g'`
+
+    DesktopEntryTempPath="`mktemp /tmp/air.autostart.XXXXXX`"
+
+    theDesktopEntry="[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name="$fileName""
+
+# xfce requires the exec path to be in single quotes.
+
+    if [ "$DE" = "xfce" ]; then
+    theDesktopEntry=""$theDesktopEntry"
+Exec='"$execFilePath"'"
+
+    else
+    theDesktopEntry=""$theDesktopEntry"
+Exec=\""$execFilePath"\""
+
+    fi
+
+    echo "$theDesktopEntry" > "$DesktopEntryTempPath"
+}
+
+
+#--------------------------------------
+# places the passed temp path destop file appropriately
+installDesktopEntryInternal()
+{
+    desktopEntryWritten=false;
+
+    autostartDirs="$2"
+
+    # figure out a name for the desktop entry file
+    defaultFileName=
+    ExecFilePath=
+
+    searchResult=`grep -E "^\s*Exec\s*=" "$1" | head -n 1`
+    if [ -n "$searchResult" ]; then
+        ExecFilePath=`echo "$searchResult" | cut -f 2 -d "="`
+        ExecFilePath=`trimSpaces "$ExecFilePath"`
+        ExecFilePath=`trimQuotes "$ExecFilePath"`
+    	if [ "$DE" = "xfce" ]; then
+        	ExecFilePath=`trimSingleQuotes "$ExecFilePath"`
+	fi
+        defaultFileName=`basename "$ExecFilePath"`
+	if [ "$3" = "KDE3" -o "$3" = "KDE4" ]; then
+	        defaultFileName="${defaultFileName}_KDE"
+	fi	
+    fi
+
+    # cannot find a file name
+    if [ -z "$defaultFileName" ]; then
+        return 1
+    fi
+
+    # try to place the desktop entry into these directories in pref order.
+    # bail out as soon as you are able to place it.
+    old_IFS="$IFS"
+    IFS=":"
+    for autostartDir in $autostartDirs
+    do
+        # check if this folder already has a desktop file for this app
+        # if yes, use that file name.
+	localFilePath=`grep -E -l "^\s*Exec\s*=\s*\"?${ExecFilePath}\"?\s*$" "$autostartDir"/*.desktop | head -n 1`
+        if [ -n "$localFilePath" ]; then
+            filePath="$localFilePath"
+        else
+            fileName="$defaultFileName"
+            filePath="${autostartDir}/${fileName}.desktop"
+            # make sure if the file already exists it is actually for this app
+            AnotherAppDesktopFileWithSameNameExist=false
+            if [ -f "$filePath" ]; then
+	    	desktopEntryFileGetKeyValue "$filePath" "Exec"
+		if [ "$?" = 0 -a -n "$DesktopEntryKeyVal" ]; then
+                    if [ "$DesktopEntryKeyVal" != "$ExecFilePath" ]; then
+                            AnotherAppDesktopFileWithSameNameExist=true
+                    fi
+                fi
+            fi
+
+            i=0
+            while [ "$AnotherAppDesktopFileWithSameNameExist" = true ]
+            do
+                # we need to find another name for this desktop file
+                fileName="${fileName}_${i}"
+                i=`expr "$i" + 1`
+                filePath="${autostartDir}/${fileName}.desktop"
+                if [ -f "$filePath" ]; then
+                    AnotherAppDesktopFileWithSameNameExist=true
+                else
+                    AnotherAppDesktopFileWithSameNameExist=false
+                fi
+            done
+
+	    mkdir -p "$autostartDir"
+        fi
+
+        mv -f "$1" "$filePath"
+
+        if [ "$?" = 0 ]; then
+            desktopEntryWritten=true;
+            break;
+        fi
+    done
+    IFS="$old_IFS"
+
+    if [ "$desktopEntryWritten" = true ]; then
+        retval=0;
+    else 
+        retval=1;
+    fi
+
+    return "$retval"
+}
+
+
+getAutostartDirs()
+{
+    if [ ! -n "$XDG_CONFIG_HOME" ]; then
+        XDG_CONFIG_HOME="${HOME}/.config"
+    fi
+
+    if [ ! -n "$XDG_CONFIG_DIRS" ]; then
+        XDG_CONFIG_DIRS="/etc/xdg"
+    fi
+
+    autostartDirs="${XDG_CONFIG_HOME}/autostart:${XDG_CONFIG_DIRS}/autostart"
+    
+    echo "$autostartDirs"
+}
+
+getAutostartDirsForKDE3()
+{
+	autoStartDirs=`kde-config --userpath autostart`
+
+	if [ $? = 0 ]; then
+		:
+	else
+		autoStartDirs="${HOME}/.kde/Autostart"
+	fi
+	
+    	echo "$autoStartDirs"
+}
+
+getAutostartDirsForKDE4()
+{
+	# kde4-config gives wrong results on KDE 4 if the value is not present in the config file.
+	autoStartDirEntry=`kreadconfig --group Paths --key Autostart`
+	if [ -z "$autoStartDirEntry" ]; then
+		autoStartDirs="${HOME}/.kde4/Autostart"
+	else
+		autoStartDirs=`kde4-config --userpath autostart`
+		if [ -z "$autoStartDirs" ]; then
+			autoStartDirs="${HOME}/.kde4/Autostart"
+		fi
+	fi
+	
+    	echo "$autoStartDirs"
+}
+
+#--------------------------------------
+# places the passed temp path destop file appropriately
+installDesktopEntry()
+{	
+	if [ "$2" = KDE3 ]; then
+		autoStartDirs=`getAutostartDirsForKDE3`
+	elif [ "$2" = KDE4 ]; then
+		autoStartDirs=`getAutostartDirsForKDE4`
+	else
+		autoStartDirs=`getAutostartDirs`
+	fi
+		
+	installDesktopEntryInternal "$1" "$autoStartDirs" "$2"
+}
+
+#--------------------------------------
+# registers an app for autostart on user's Desktop login
+registerAutostart()
+{
+    result=1;
+
+    # this is used to return the final out status, which gets echoed by the script
+    finalResult="error"
+
+    # contents of the desktop entry file
+    DesktopEntry=
+
+    # path of the desktopEntry file
+    DesktopEntryFilePath=
+
+    DesktopEnv="$3"
+
+    # get the file path for the desktop file in DesktopEntryFilePath
+    getDesktopEntryFilePath "$1" "$DesktopEnv"
+
+    if [ "$?" = 0 -a -n "$DesktopEntryFilePath" ]; then
+        desktopEntryFileFound=true
+    else
+        desktopEntryFileFound=false
+        if [ "$2" = "unregister" -o "$2" = "query" ]; then
+            finalResult="unregistered"
+            return 0;
+        fi
+    fi
+
+    case "$2" in
+
+    register)
+        if [ "$desktopEntryFileFound" = true ]; then
+            desktopEntryFileGetKeyValue "$DesktopEntryFilePath" "Hidden"
+            if [ "$?" = 0 ]; then
+                if [ "$DesktopEntryKeyVal" = "false" ]; then
+                    finalResult="registered"
+                    return 0
+                fi
+            else
+                finalResult="registered"
+                return 0
+            fi
+
+            desktopEntryFileSetKeyValue "$DesktopEntryFilePath" "Hidden" "false"
+        else
+            # create a desktop entry in DesktopEntryTempPath variable
+            desktopEntry "$1"
+            tempFilePath="$DesktopEntryTempPath"
+            desktopEntryFileSetKeyValue "$tempFilePath" "Hidden" "false"
+            rm -f "$tempFilePath"
+        fi
+
+	if [ "$DesktopEnv" = "KDE3" -o "$DesktopEnv" = KDE4 ]; then
+	   tempFilePath="$DesktopEntryTempPath"
+           desktopEntryFileSetKeyValue "$tempFilePath" "OnlyShowIn" "KDE;"
+	   rm -f "$tempFilePath"
+	else
+	   tempFilePath="$DesktopEntryTempPath"
+           desktopEntryFileSetKeyValue "$tempFilePath" "NotShowIn" "KDE;"
+	   rm -f "$tempFilePath"
+	fi
+        
+        installDesktopEntry "$DesktopEntryTempPath" "$DesktopEnv"
+        if [ "$?" = 0 ]; then
+            finalResult=registered
+        fi
+        rm -f "$DesktopEntryTempPath"
+        ;;
+
+    unregister)
+        if [ "$desktopEntryFileFound" = true ]; then
+            desktopEntryFileGetKeyValue "$DesktopEntryFilePath" "Hidden"
+            if [ "$?" = 0 ]; then
+                if [ $DesktopEntryKeyVal = "true" ]; then
+                    finalResult="unregistered"
+                    return 0
+                fi
+            fi
+
+            desktopEntryFileSetKeyValue "$DesktopEntryFilePath" "Hidden" "true"
+        else
+            # create a desktop entry in DesktopEntryTempPath variable
+            desktopEntry "$1"
+            tempFilePath="$DesktopEntryTempPath"
+            desktopEntryFileSetKeyValue "$tempFilePath" "Hidden" "true"
+            rm -f "$tempFilePath"
+        fi
+        
+	if [ "$DesktopEnv" = "KDE3" -o "$DesktopEnv" = "KDE4" ]; then
+	   tempFilePath="$DesktopEntryTempPath"
+           desktopEntryFileSetKeyValue "$tempFilePath" "OnlyShowIn" "KDE;"
+	   rm -f "$tempFilePath"
+	else
+	   tempFilePath="$DesktopEntryTempPath"
+           desktopEntryFileSetKeyValue "$tempFilePath" "NotShowIn" "KDE;"
+	   rm -f "$tempFilePath"
+	fi
+
+        installDesktopEntry "$DesktopEntryTempPath" "$DesktopEnv"
+        if [ "$?" = 0 ]; then
+            finalResult=unregistered
+        fi
+        rm -f "$DesktopEntryTempPath"
+        ;;
+
+    query)
+        # find value of the hidden key
+        if [ "$desktopEntryFileFound" = true ]; then
+            desktopEntryFileGetKeyValue "$DesktopEntryFilePath" "Hidden"
+            if [ "$?" = 0 ]; then
+                if [ $DesktopEntryKeyVal = "true" ]; then
+                    finalResult="unregistered"
+                else
+                    finalResult="registered"
+                fi
+            else
+                finalResult="registered"
+            fi
+        else
+            finalResult="unregistered"
+        fi
+        return 0
+        ;;
+ 
+    *)
+         exit_failure_syntax 
+         ;;
+
+     esac
+}
+
+register()
+{
+# TODO_AirLinux - remove readlink
+inFilePath=`readlink -m "$2"`
+
+finalResultGeneral="error"
+finalResultKDE3="error"
+
+# make sure passed file exists
+if [ -f "$inFilePath" ]; then
+    :
+else
+    exit 1
+fi
+
+registerAutostart "$inFilePath" "$1"
+finalExitStatusGeneral="$?"
+finalResultGeneral="$finalResult"
+
+# 
+# also do specific stuff for KDE
+registerAutostart "$inFilePath" "$1" "KDE3"
+finalExitStatusForKDE3="$?"
+finalResultKDE3="$finalResult"
+registerAutostart "$inFilePath" "$1" "KDE4"
+finalExitStatusForKDE4="$?"
+finalResultKDE4="$finalResult"
+
+if [ "$finalExitStatusGeneral" = 0 -a "$finalExitStatusForKDE3" = 0 -a "$finalExitStatusForKDE4" = 0 ]; then
+    result="success"
+else
+    result="failure"
+fi
+
+# choose the result according to the desktop manager - 
+if [ "$DE" = "kde" ]; then
+	finalResult="$finalResultKDE3"
+	finalExitStatus="$finalExitStatusForKDE3"
+elif [ "$DE" = "kde4" ]; then
+	finalResult="$finalResultKDE4"
+	finalExitStatus="$finalExitStatusForKDE4"
+else
+	finalResult="$finalResultGeneral"
+	finalExitStatus="$finalExitStatusGeneral"
+fi
+
+echo $result
+echo -n $finalResult
+
+exit "$finalExitStatus"
+}
+
+uninstall()
+{
+    # get all possible autostrt dirs - 
+    autoStartDirs=`getAutostartDirs`:`getAutostartDirsForKDE3`:`getAutostartDirsForKDE4`
+    ExecFilePath=`readlink -m "$1"`
+    old_IFS="$IFS"
+    IFS=":"
+    for autostartDir in $autoStartDirs
+    do
+        # check if this folder has a desktop file for this app
+	  localFilePath=`grep -E -l "^\s*Exec\s*=\s*\"?${ExecFilePath}\"?\s*$" "$autostartDir"/*.desktop | head -n 1`
+        if [ -n "$localFilePath" ]; then
+            #desktop file found, delete it ..
+	    rm -f "$localFilePath"
+	  fi
+    done
+    IFS="$old_IFS"
+}
+
+main()
+{
+	# main logic starts here
+	if [ "$1" = "uninstall" ]; then
+		uninstall "$2"
+	else
+		register "$1" "$2"
+	fi
+}
+
+#--------------------------------------
+# do basic argument checking
+[ x"$1" != x"" ] || exit_failure_syntax;
+
+[ $# -eq 2 ] || exit_failure_syntax;
+
+[ "$1" = "register" -o "$1" = "unregister" -o "$1" = "query" -o "$1" = "uninstall" ] || exit_failure_syntax;
+
+detectDE
+
+main "$1" "$2"
+
+

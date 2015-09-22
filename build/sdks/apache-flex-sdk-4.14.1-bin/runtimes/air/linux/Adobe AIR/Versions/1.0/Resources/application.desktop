@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=__TAG_FILENAME__
+Comment=__TAG_DESCRIPTION__
+GenericName=__TAG_FILENAME__
+Exec=__TAG_LOCATION__/__TAG_QUOTED_FILENAME__/bin/__TAG_QUOTED_FILENAME__
+Type=Application
+Terminal=false
+Icon=__TAG_ICON__
+StartupNotify=true
+X-KDE-StartupNotify=true
+Categories=__TAG_CATEGORY__
+X-AppInstall-Package=__TAG_NAME__
+X-AppInstall-Section=main
+__TAG_SUBMENU_ID__

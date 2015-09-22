@@ -1,0 +1,387 @@
+#!/bin/bash
+
+#export CERT_INSTALL_DIR="${HOME}/.appdata/Adobe/AIR/temp"
+export DEBUG=0
+
+#0 means success with a new cert file
+#1 means success with an existing cert file
+#2 means failure
+export RETVAL=0
+
+#$1 is certificate file
+InstallCommonCertificate()
+{
+    local CERT_FILE_1=""
+    local CERT_FILE_2=""
+    local CERT_FILE_3=""
+    local HASH=""
+    local EXT=""
+
+    if [ $# -ne 3 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Invalid arguements in InstallCommonCertificate."
+	fi
+
+	RETVAL=2
+	return 1
+    fi
+
+    CERT_FILE_1="$1"
+    if [ ! -f "${CERT_FILE_1}" ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not find file ${CERT_FILE_1}."
+	fi
+
+	RETVAL=2
+	return 1
+    fi
+
+    CERT_INSTALL_DIR="$2"
+    if [ ! -d "${CERT_INSTALL_DIR}" ]
+    then
+	mkdir -p "${CERT_INSTALL_DIR}"
+    fi
+
+    MODE="$3"
+
+    CERT_FILE_2="`mktemp /tmp/air_sslcertificate_XXXXXX`"
+    CERT_FILE_3="`mktemp /tmp/air_sslcertificate_XXXXXX`"
+    CERT_FILE_4="`mktemp /tmp/air_sslcertificate_XXXXXX`"
+
+    #extract the correct portion of the certificate
+    cat "${CERT_FILE_1}" | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' 1>"${CERT_FILE_2}"
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not parse certificate file."
+	fi
+	rm -f "${CERT_FILE_2}"
+	rm -f "${CERT_FILE_3}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Fetching certificate information."
+	echo "EXECUTING : openssl x509 -inform PEM -text -in ${CERT_FILE_2} -out ${CERT_FILE_3}"
+    fi
+
+    if [ "${MODE}" = "OPENSSL" ]
+    then
+	    openssl x509 -inform PEM -text -in "${CERT_FILE_2}" -out "${CERT_FILE_3}" 2>/dev/null
+	    openssl x509 -inform PEM -text -in "${CERT_FILE_2}" -out "${CERT_FILE_4}" 2>/dev/null
+    elif [ "${MODE}" = "NSS" ]
+    then
+	    openssl x509 -inform PEM -outform DER -in "${CERT_FILE_2}" -out "${CERT_FILE_3}" 2>/dev/null
+	    openssl x509 -inform PEM -text -in "${CERT_FILE_2}" -out "${CERT_FILE_4}" 2>/dev/null
+    else
+            RETVAL=2
+	    rm -f "${CERT_FILE_2}"
+   	    rm -f "${CERT_FILE_3}"
+	    rm -f "${CERT_FILE_4}"
+
+            return 1
+    fi
+    
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not successfully fetch information from certificate."
+	fi
+	rm -f "${CERT_FILE_2}"
+	rm -f "${CERT_FILE_3}"
+	rm -f "${CERT_FILE_4}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Creating hash of certificate."
+	echo "EXECUTING : openssl x509 -hash -noout -in ${CERT_FILE_3}"
+    fi
+
+    #create a hash of the certificate to find a unique name
+    if [ "${MODE}" = "OPENSSL" ]
+    then
+    	HASH=`openssl x509 -hash -noout -in ${CERT_FILE_3} 2>/dev/null`
+    elif [ "${MODE}" = "NSS" ]
+    then
+	HASH=`openssl x509 -hash -inform DER -noout -in ${CERT_FILE_3} 2>/dev/null`
+    else
+            RETVAL=2
+	    rm -f "${CERT_FILE_2}"
+	    rm -f "${CERT_FILE_3}"
+	    rm -f "${CERT_FILE_4}"
+            return 1
+    fi
+
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not successfully create hash of certificate."
+	fi
+	rm -f "${CERT_FILE_2}"
+	rm -f "${CERT_FILE_3}"
+	rm -f "${CERT_FILE_4}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    #search for the correct output file
+    EXT="0"
+    while [ 1 ]
+      do
+      if [ -f "${CERT_INSTALL_DIR}/${HASH}.${EXT}" ]
+	  then
+	  diff -q "${CERT_FILE_3}" "${CERT_INSTALL_DIR}/${HASH}.${EXT}" 2>&1 1>/dev/null
+	  if [ $? -eq 0 ]
+	      then
+	      #the 2 cert files are the same simply use the same name
+	      RETVAL=1
+	      break;
+	  else
+	      #the file already exists for a different cert, find a new name
+	      EXT=`echo "${EXT} + 1" | bc`
+	      continue
+	  fi
+      else
+	  #the filename is free, use it
+	  RETVAL=0
+	  break;
+      fi
+    done
+    
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Copying certificate file to correct location."
+	echo "EXECUTING : cp -f ${CERT_FILE_3} ${CERT_INSTALL_DIR}/${HASH}.${EXT}"
+    fi
+
+    #copy the temporary file to the correct location
+    cp -f "${CERT_FILE_3}" "${CERT_INSTALL_DIR}/${HASH}.${EXT}"
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not copy certificate file."
+	fi
+	rm -f "${CERT_FILE_2}"
+	rm -f "${CERT_FILE_3}"
+	rm -f "${CERT_FILE_4}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    #remove the temporary file
+    rm -f "${CERT_FILE_2}"
+    rm -f "${CERT_FILE_3}"
+    rm -f "${CERT_FILE_4}"
+    CERT_FILE_3="${CERT_INSTALL_DIR}/${HASH}.${EXT}"
+    
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Certificate successfully installed at ${CERT_FILE_3}"
+    else
+	echo "${CERT_FILE_3}"
+    fi
+    
+    return 0
+}
+
+
+#$1 is server url
+#$2 is server port
+InstallServerCertificate()
+{
+    local REMOTE_HOST=""
+    local REMOTE_PORT=""
+    local CERT_FILE_1=""
+    local certInstallDir="${HOME}/.appdata/Adobe/AIR/temp"
+
+    if [ $# -ne 2 ] && [ $# -ne 3 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Invalid arguements in InstallServerCertificate."
+	fi
+
+	RETVAL=2
+	return 1
+    fi
+
+    MODE="$1"
+    REMOTE_HOST="$2"
+    REMOTE_PORT=${3:-443}
+    CERT_FILE_1="`mktemp /tmp/air_sslcertificate_XXXXXX`"
+
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Fetching certificate from website ..."
+	echo "EXECUTING : echo | openssl s_client -connect ${REMOTE_HOST}:${REMOTE_PORT}"
+    fi
+
+    #fetch the certificate from website
+    echo | openssl s_client -connect "${REMOTE_HOST}":"${REMOTE_PORT}" 2>/dev/null 1>"${CERT_FILE_1}"
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not successfully connect to the server."
+	fi
+	rm -f "${CERT_FILE_1}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    #install the certificate file to the correct location
+    InstallCommonCertificate "${CERT_FILE_1}" "${certInstallDir}" "${MODE}"
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not successfully install the certificate."
+	fi
+	rm -f "${CERT_FILE_1}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    #remove the temporary file
+    rm -f "${CERT_FILE_1}"
+    return 0
+}
+
+
+#$1 is certificate file
+InstallLocalCertificate()
+{
+    local certInstallDir="${HOME}/.appdata/Adobe/AIR/Certs"
+    local CERT_FILE_1=""
+    local CERT_FILE_2=""
+
+    if [ $# -ne 2 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Invalid arguements in InstallLocalCertificate."
+	fi
+
+	RETVAL=2
+	return 1
+    fi
+
+    MODE="$1"
+    CERT_FILE_1="$2"
+    if [ ! -f "${CERT_FILE_1}" ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not find file ${CERT_FILE_1}."
+	fi
+
+	RETVAL=2
+	return 1
+    fi
+
+    CERT_FILE_2="`mktemp /tmp/air_sslcertificate_XXXXXX`"
+
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Fetching certificate from local file ..."
+	echo "EXECUTING : openssl x509 -inform DER -in ${CERT_FILE_1} -out ${CERT_FILE_2}"
+    fi
+
+    #parse the provided certifcate in the correct format
+    #convert a DER certificate to PEM format
+    openssl x509 -inform DER -in "${CERT_FILE_1}" -out "${CERT_FILE_2}" 2>/dev/null
+    if [ $? -ne 0 ]
+	then
+	#maybe it is already in PEM format
+	cat "${CERT_FILE_1}" 1>"${CERT_FILE_2}"
+    fi
+
+    #install the certificate file to the correct location
+    InstallCommonCertificate "${CERT_FILE_2}" "${certInstallDir}" "${MODE}"
+    if [ $? -ne 0 ]
+	then
+	if [ ${DEBUG} -eq 1 ]
+	    then
+	    echo "Could not successfully install the certificate."
+	fi
+	rm -f "${CERT_FILE_2}"
+
+	RETVAL=2
+	return 1
+    fi
+
+    #remove the temporary file
+    rm -f "${CERT_FILE_2}"
+    return 0
+}
+
+
+ShowArgError()
+{
+    echo "Usage : $0 [option]"
+    echo ""
+    echo "   Use ONE of the following options -"
+    echo "   -s <server url> <server port> : Fetch and install certificate from server."
+    echo "   -l <certificate file>         : Fetch and install certificate from the local file."
+    echo ""
+    echo ""
+    exit 2
+}
+
+DO_SERVER_INSTALL=0
+DO_LOCAL_INSTALL=0
+
+while getopts dslir arg
+  do
+  case ${arg} in
+      d) export DEBUG=1;;
+      s) export DO_SERVER_INSTALL=1;;
+      l) export DO_LOCAL_INSTALL=1;;
+      ?) ShowArgError;;
+  esac
+done
+
+shift $(($OPTIND - 1))
+
+if [ ${DO_SERVER_INSTALL} -eq 1 ]
+    then
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Doing install with args - \"$@\""
+    fi
+
+    InstallServerCertificate "$1" "$2" "$3"
+    exit $RETVAL
+
+elif [ ${DO_LOCAL_INSTALL} -eq 1 ]
+    then
+    if [ ${DEBUG} -eq 1 ]
+	then
+	echo "Doing install with args - \"$@\""
+    fi
+
+    InstallLocalCertificate "$1" "$2"
+    exit $RETVAL
+
+fi
+    
+ShowArgError    
