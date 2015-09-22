@@ -19,9 +19,7 @@ OPT_RELEASE_WORKERS="$_OPT_RELEASE -define=CONFIG::HAVE_WORKER,true"
 
 function make()
 {
-    local output=$1
-    local opt=$2
-    local swf_version=$3
+    local output=$1 opt=$2 swf_version=$3
     echo "Compiling $output"
     $FLEXPATH/bin/compc $opt \
         -include-sources ../src/org/hola \
