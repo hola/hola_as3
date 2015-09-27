@@ -12,7 +12,6 @@ package org.hola {
         public static var managed : Boolean = false;
         public static var fetch_bin_chunk_size : Number = 128*1024;
         public static var fetch_bin_delay : Number = 20;
-        public static var version : String = CONFIG::HOLA_AS3_VERSION;
 
         public static function get use_worker() : Boolean {
             CONFIG::HAVE_WORKER {
