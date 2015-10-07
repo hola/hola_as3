@@ -7,6 +7,7 @@ package org.hola {
     import flash.net.URLRequest;
     import flash.net.URLStream;
     import flash.utils.ByteArray;
+    import flash.utils.IDataInput;
     import org.hola.ZExternalInterface;
     import org.hola.ZErr;
     import org.hola.Base64;
@@ -139,14 +140,7 @@ package org.hola {
             if (data)
             {
                 data.position = 0;
-                if (_resource)
-                {
-                    var prev : uint = _resource.position;
-                    data.readBytes(_resource, _resource.length);
-                    _resource.position = prev;
-                }
-                else
-                    _resource = data;
+                append_data(data);
                 // XXX arik: get finalLength from js
                 var finalLength : uint = _resource.length;
                 dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
@@ -155,6 +149,12 @@ package org.hola {
             // XXX arik: dispatch httpStatus/httpResponseStatus
             if (_curr_data.status)
                 resourceLoadingSuccess();
+        }
+
+        private function append_data(data : IDataInput) : void {
+            var prev : uint = _resource.position;
+            data.readBytes(_resource, _resource.length);
+            _resource.position = prev;
         }
 
         private function on_fragment_data(o : Object) : void {
@@ -167,34 +167,18 @@ package org.hola {
         }
 
         private function fetch_bin(o : Object) : void {
-            if (!(o.fetchBinReq = FlashFetchBin.req_list[o.fetchBinReqId]))
+            var fetchBinReq : Object;
+            if (!(fetchBinReq = FlashFetchBin.req_list[o.fetchBinReqId]))
                 throw new Error('fetchBinReqId not found '+o.fetchBinReqId);
-            _fetch_bin(o);
-        }
-
-        private function _fetch_bin(o : Object) : void {
-            var fetchBinStream : URLStream = o.fetchBinReq.stream;
-            _resource = _resource || new ByteArray();
-            var prev : Number = _resource.position;
-            var len : Number = Math.min(fetchBinStream.bytesAvailable,
-                HSettings.fetch_bin_chunk_size);
-            if (len)
+            var stream : URLStream = fetchBinReq.stream;
+            if (stream.bytesAvailable)
             {
-                fetchBinStream.readBytes(_resource, _resource.length, len);
-                _resource.position = prev;
+                append_data(stream);
                 dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
-                    false, _resource.length, o.fetchBinReq.bytesTotal));
+                    false, _resource.length, fetchBinReq.bytesTotal));
             }
-            if (_resource.length < o.fetchBinReq.bytesTotal)
-            {
-                FlashFetchBin.consumeDataTimeout(o.fetchBinReqId,
-                    _fetch_bin, HSettings.fetch_bin_delay, o);
-            }
-            else
-            {
-                resourceLoadingSuccess();
-                FlashFetchBin.hola_fetchBinRemove(o.fetchBinReqId);
-            }
+            resourceLoadingSuccess();
+            FlashFetchBin.hola_fetchBinRemove(o.fetchBinReqId);
         }
 
         private static function hola_onFragmentData(o : Object) : void {

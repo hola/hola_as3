@@ -2,8 +2,6 @@ package org.hola {
     import flash.events.*;
     import flash.net.URLStream;
     import flash.net.URLRequest;
-    import flash.utils.setTimeout;
-    import flash.utils.clearTimeout;
     import flash.external.ExternalInterface;
     import org.hola.ZExternalInterface;
 
@@ -52,8 +50,6 @@ package org.hola {
                 return;
             if (req.stream.connected)
                 req.stream.close();
-            if (req.timer)
-                clearTimeout(req.timer);
             delete req_list[id];
         }
 
@@ -127,16 +123,6 @@ package org.hola {
                 return ZErr.log('req not found streamError');
             jsPostMessage('holaflash.streamError', {id: req.id});
             hola_fetchBinRemove(req.id);
-        }
-
-        public static function consumeDataTimeout(id:String,
-            cb:Function, ms:Number, ctx:Object):void{
-            var req:Object = req_list[id];
-            if (!req)
-                throw new Error('consumeDataTimeout failed find req '+id);
-            if (req.timer)
-                clearTimeout(req.timer);
-            req.timer = setTimeout(cb, ms, ctx);
         }
     }
 }
