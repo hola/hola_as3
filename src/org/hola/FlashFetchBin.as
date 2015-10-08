@@ -3,7 +3,6 @@ package org.hola {
     import flash.net.URLStream;
     import flash.net.URLRequest;
     import flash.external.ExternalInterface;
-    import org.hola.ZExternalInterface;
 
     public class FlashFetchBin {
         private static var inited:Boolean = false;

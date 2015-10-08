@@ -1,6 +1,5 @@
 package org.hola {
     import flash.external.ExternalInterface;
-    import org.hola.ZExternalInterface;
     CONFIG::HAVE_WORKER {
     import flash.system.Worker;
     }

@@ -8,11 +8,6 @@ package org.hola {
     import flash.net.URLStream;
     import flash.utils.ByteArray;
     import flash.utils.IDataInput;
-    import org.hola.ZExternalInterface;
-    import org.hola.ZErr;
-    import org.hola.Base64;
-    import org.hola.HSettings;
-    import org.hola.FlashFetchBin;
 
     public dynamic class JSURLStream extends URLStream {
         private static var js_api_inited : Boolean = false;

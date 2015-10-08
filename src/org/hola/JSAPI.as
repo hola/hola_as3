@@ -2,8 +2,6 @@ package org.hola
 {
     import flash.external.ExternalInterface;
     import flash.utils.setTimeout;
-    import org.hola.ZExternalInterface;
-    import org.hola.HSettings;
 
     public class JSAPI
     {

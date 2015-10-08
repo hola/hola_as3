@@ -6,7 +6,6 @@ package org.hola {
     }
     import flash.events.EventDispatcher
     import flash.events.Event;
-    import org.hola.HEvent;
 
     public class WorkerUtils {
         private static var _dispatcher : EventDispatcher =
