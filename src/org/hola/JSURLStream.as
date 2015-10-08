@@ -135,7 +135,7 @@ package org.hola {
             if (stream.bytesAvailable)
                 append_data(stream, fetchBinReq.bytesTotal);
             resourceLoadingSuccess();
-            FetchBin.hola_fetchBinRemove(o.fetchBinReqId);
+            FetchBin.remove(o.fetchBinReqId);
         }
 
         private static function hola_onFragmentData(o : Object) : void {

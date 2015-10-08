@@ -14,16 +14,14 @@ package org.hola {
                 return inited;
             if (!ZExternalInterface.avail())
                 return false;
-            ExternalInterface.addCallback('hola_fetchBin', hola_fetchBin);
-            ExternalInterface.addCallback('hola_fetchBinRemove',
-                hola_fetchBinRemove);
-            ExternalInterface.addCallback('hola_fetchBinAbort',
-                hola_fetchBinAbort);
+            ExternalInterface.addCallback('hola_fetchBin', fetch);
+            ExternalInterface.addCallback('hola_fetchBinRemove', remove);
+            ExternalInterface.addCallback('hola_fetchBinAbort', abort);
             inited = true;
             return inited;
         }
 
-        private static function hola_fetchBin(o:Object):Object{
+        private static function fetch(o:Object):Object{
             var id:String = 'fetch_bin_'+free_id;
             free_id++;
             var url:String = o.url;
@@ -43,7 +41,7 @@ package org.hola {
             return {id: id, url: url};
         }
 
-        public static function hola_fetchBinRemove(id:String):void{
+        public static function remove(id:String):void{
             var req:Object = req_list[id];
             if (!req)
                 return;
@@ -52,7 +50,7 @@ package org.hola {
             delete req_list[id];
         }
 
-        private static function hola_fetchBinAbort(id:String):void{
+        private static function abort(id:String):void{
             var req:Object = req_list[id];
             if (!req)
                 return;
@@ -121,7 +119,7 @@ package org.hola {
             if (!req)
                 return ZErr.log('req not found streamError');
             jsPostMessage('holaflash.streamError', {id: req.id});
-            hola_fetchBinRemove(req.id);
+            remove(req.id);
         }
     }
 }
