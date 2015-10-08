@@ -124,10 +124,8 @@ package org.hola {
                 var data : ByteArray = Base64.decode_str(o.data);
                 data.position = 0;
                 append_data(data);
-                // XXX arik: get finalLength from js
-                var finalLength : uint = _resource.length;
                 dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
-                    false, _resource.length, finalLength));
+                    false, _resource.length, o.total||_resource.length));
             }
             // XXX arik: dispatch httpStatus/httpResponseStatus
             if (o.status)
