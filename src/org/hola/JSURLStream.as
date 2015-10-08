@@ -129,13 +129,13 @@ package org.hola {
 
         private function fetch_bin(o : Object) : void {
             var fetchBinReq : Object;
-            if (!(fetchBinReq = FlashFetchBin.req_list[o.fetchBinReqId]))
+            if (!(fetchBinReq = FetchBin.req_list[o.fetchBinReqId]))
                 throw new Error('fetchBinReqId not found '+o.fetchBinReqId);
             var stream : URLStream = fetchBinReq.stream;
             if (stream.bytesAvailable)
                 append_data(stream, fetchBinReq.bytesTotal);
             resourceLoadingSuccess();
-            FlashFetchBin.hola_fetchBinRemove(o.fetchBinReqId);
+            FetchBin.hola_fetchBinRemove(o.fetchBinReqId);
         }
 
         private static function hola_onFragmentData(o : Object) : void {

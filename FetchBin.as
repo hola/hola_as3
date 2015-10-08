@@ -4,7 +4,7 @@ package org.hola {
     import flash.net.URLRequest;
     import flash.external.ExternalInterface;
 
-    public class FlashFetchBin {
+    public class FetchBin {
         private static var inited:Boolean = false;
         private static var free_id:Number = 0;
         public static var req_list:Object = {};

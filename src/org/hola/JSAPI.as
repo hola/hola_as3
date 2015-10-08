@@ -12,7 +12,7 @@ package org.hola
                 return;
             _inited = true;
             HSettings.init();
-            FlashFetchBin.init();
+            FetchBin.init();
             ExternalInterface.addCallback("hola_setTimeout", set_timeout);
             ExternalInterface.addCallback("hola_version_swc", version);
         }
