@@ -11,8 +11,6 @@ package org.hola {
     import org.hola.ZExternalInterface;
     import org.hola.ZErr;
     import org.hola.Base64;
-    import org.hola.WorkerUtils;
-    import org.hola.HEvent;
     import org.hola.HSettings;
     import org.hola.FlashFetchBin;
 
@@ -22,15 +20,12 @@ package org.hola {
         private static var reqs : Object = {};
         private var _connected : Boolean;
         private var _resource : ByteArray = new ByteArray();
-        private var _curr_data : Object;
         private var _hola_managed : Boolean = false;
         private var _req_id : String;
 
         public function JSURLStream(){
             _hola_managed = HSettings.hls_mode && ZExternalInterface.avail();
             addEventListener(Event.OPEN, onopen);
-            if (HSettings.use_worker)
-                WorkerUtils.addEventListener(HEvent.WORKER_MESSAGE, onmsg);
             super();
             if (!ZExternalInterface.avail() || js_api_inited)
                 return;
@@ -84,8 +79,6 @@ package org.hola {
         }
 
         override public function close() : void {
-            if (HSettings.use_worker)
-                WorkerUtils.removeEventListener(HEvent.WORKER_MESSAGE, onmsg);
             if (_hola_managed && reqs[_req_id])
             {
                 _delete();
@@ -115,30 +108,20 @@ package org.hola {
 
         private function onopen(e : Event) : void { _connected = true; }
 
-        private function decode(str : String) : void {
-            if (!str)
-                return on_decoded_data(null);
-            if (!HSettings.use_worker)
-                return on_decoded_data(Base64.decode_str(str));
-            var data : ByteArray = new ByteArray();
-            CONFIG::HAVE_WORKER {
-            data.shareable = true;
-            }
-            data.writeUTFBytes(str);
-            WorkerUtils.send({cmd: "b64.decode", id: _req_id});
-            WorkerUtils.send(data);
+        private function append_data(data : IDataInput) : void {
+            var prev : uint = _resource.position;
+            data.readBytes(_resource, _resource.length);
+            _resource.position = prev;
         }
 
-        private function onmsg(e : HEvent) : void {
-            var msg : Object = e.data;
-            if (!_req_id || _req_id!=msg.id || msg.cmd!="b64.decode")
-                return;
-            on_decoded_data(WorkerUtils.recv());
-        }
-
-        private function on_decoded_data(data : ByteArray) : void {
-            if (data)
+        private function on_fragment_data(o : Object) : void {
+            if (o.error)
+                return resourceLoadingError();
+            if (o.fetchBinReqId)
+                return fetch_bin(o);
+            if (o.data)
             {
+                var data : ByteArray = Base64.decode_str(o.data);
                 data.position = 0;
                 append_data(data);
                 // XXX arik: get finalLength from js
@@ -147,23 +130,8 @@ package org.hola {
                     false, _resource.length, finalLength));
             }
             // XXX arik: dispatch httpStatus/httpResponseStatus
-            if (_curr_data.status)
+            if (o.status)
                 resourceLoadingSuccess();
-        }
-
-        private function append_data(data : IDataInput) : void {
-            var prev : uint = _resource.position;
-            data.readBytes(_resource, _resource.length);
-            _resource.position = prev;
-        }
-
-        private function on_fragment_data(o : Object) : void {
-            _curr_data = o;
-            if (o.error)
-                return resourceLoadingError();
-            if (o.fetchBinReqId)
-                return fetch_bin(o);
-            decode(o.data);
         }
 
         private function fetch_bin(o : Object) : void {
