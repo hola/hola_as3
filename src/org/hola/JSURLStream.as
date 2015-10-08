@@ -30,7 +30,7 @@ package org.hola {
              ExternalInterface.marshallExceptions = true;
              */
             ExternalInterface.addCallback('hola_onFragmentData',
-                hola_onFragmentData);
+                onFragmentData);
             js_api_inited = true;
         }
 
@@ -138,14 +138,14 @@ package org.hola {
             FetchBin.remove(o.fetchBinReqId);
         }
 
-        private static function hola_onFragmentData(o : Object) : void {
+        private static function onFragmentData(o : Object) : void {
             var stream : JSURLStream;
             try {
                 if (!(stream = reqs[o.req_id]))
                     return ZErr.log('req_id not found '+o.req_id);
                 stream.on_fragment_data(o);
             } catch(err : Error){
-                ZErr.log('Error in hola_onFragmentData', ''+err,
+                ZErr.log('Error in onFragmentData', ''+err,
                     ''+err.getStackTrace());
                 if (stream)
                     stream.resourceLoadingError();
