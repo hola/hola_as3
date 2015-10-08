@@ -108,10 +108,12 @@ package org.hola {
 
         private function onopen(e : Event) : void { _connected = true; }
 
-        private function append_data(data : IDataInput) : void {
+        private function append_data(data : IDataInput, total : uint) : void {
             var prev : uint = _resource.position;
             data.readBytes(_resource, _resource.length);
             _resource.position = prev;
+            dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
+                false, _resource.length, total||_resource.length));
         }
 
         private function on_fragment_data(o : Object) : void {
@@ -123,9 +125,7 @@ package org.hola {
             {
                 var data : ByteArray = Base64.decode_str(o.data);
                 data.position = 0;
-                append_data(data);
-                dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
-                    false, _resource.length, o.total||_resource.length));
+                append_data(data, o.total);
             }
             // XXX arik: dispatch httpStatus/httpResponseStatus
             if (o.status)
@@ -138,11 +138,7 @@ package org.hola {
                 throw new Error('fetchBinReqId not found '+o.fetchBinReqId);
             var stream : URLStream = fetchBinReq.stream;
             if (stream.bytesAvailable)
-            {
-                append_data(stream);
-                dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
-                    false, _resource.length, fetchBinReq.bytesTotal));
-            }
+                append_data(stream, fetchBinReq.bytesTotal);
             resourceLoadingSuccess();
             FlashFetchBin.hola_fetchBinRemove(o.fetchBinReqId);
         }
