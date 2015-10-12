@@ -1,125 +1,103 @@
 package org.hola {
     import flash.events.*;
-    import flash.net.URLStream;
-    import flash.net.URLRequest;
     import flash.external.ExternalInterface;
+    import flash.net.URLRequest;
+    import flash.net.URLStream;
 
-    public class FetchBin {
+    public class FetchBin extends URLStream {
         private static var inited:Boolean = false;
         private static var free_id:Number = 0;
-        public static var req_list:Object = {};
+        private static var req_list:Object = {};
+        private var _jsurlstream:JSURLStream;
+        private var _jsurlstream_id:String;
+        private var _prev_js_progress:uint;
+        public var id:String;
+        public var bytesLoaded:uint;
+        public var bytesTotal:uint;
+        public var bytesRead:uint;
 
-        public static function init():Boolean{
-            if (inited)
-                return inited;
-            if (!ZExternalInterface.avail())
-                return false;
+        public static function init():void{
+            if (inited || !ZExternalInterface.avail())
+                return;
+            inited = true;
             ExternalInterface.addCallback('hola_fetchBin', fetch);
             ExternalInterface.addCallback('hola_fetchBinRemove', remove);
-            ExternalInterface.addCallback('hola_fetchBinAbort', abort);
-            inited = true;
-            return inited;
         }
 
         private static function fetch(o:Object):Object{
-            var id:String = 'fetch_bin_'+free_id;
-            free_id++;
-            var url:String = o.url;
-            var req:URLRequest = new URLRequest(url);
-            var stream:URLStream = new URLStream();
-            stream.load(req);
-            req_list[id] = {id: id, stream: stream,
-                jsurlstream_req_id: o.jsurlstream_req_id};
-            stream.addEventListener(Event.OPEN, streamOpen);
-            stream.addEventListener(ProgressEvent.PROGRESS, streamProgress);
-            stream.addEventListener(HTTPStatusEvent.HTTP_STATUS,
-                streamHttpStatus);
-            stream.addEventListener(Event.COMPLETE, streamComplete);
-            stream.addEventListener(IOErrorEvent.IO_ERROR, streamError);
-            stream.addEventListener(SecurityErrorEvent.SECURITY_ERROR,
-                streamError);
-            return {id: id, url: url};
+            var f:FetchBin = new FetchBin(o);
+            return {id: f.id, url: o.url};
+        }
+
+        public static function get(id:String):FetchBin{
+            return req_list[id];
         }
 
         public static function remove(id:String):void{
-            var req:Object = req_list[id];
+            var req:FetchBin = get(id);
             if (!req)
                 return;
-            if (req.stream.connected)
-                req.stream.close();
+            if (req.connected)
+                req.close();
+            req._delete();
+        }
+
+        public function FetchBin(o:Object){
+            id = 'fetch_bin_'+(free_id++);
+            req_list[id] = this;
+            if ((_jsurlstream_id = o.jsurlstream_req_id))
+                _jsurlstream = JSURLStream.get(o.jsurlstream_req_id);
+            super.load(new URLRequest(o.url));
+            addEventListener(Event.OPEN, onopen);
+            addEventListener(ProgressEvent.PROGRESS, onprogress);
+            addEventListener(HTTPStatusEvent.HTTP_STATUS, onstatus);
+            addEventListener(Event.COMPLETE, oncomplete);
+            addEventListener(IOErrorEvent.IO_ERROR, onerror);
+            addEventListener(SecurityErrorEvent.SECURITY_ERROR, onerror);
+        }
+
+        private function _delete():void{
             delete req_list[id];
         }
 
-        private static function abort(id:String):void{
-            var req:Object = req_list[id];
-            if (!req)
-                return;
-            if (req.stream.connected)
-                req.stream.close();
+        private function onopen(e:Event):void{
+            JSAPI.postMessage('holaflash.streamOpen', {id: id});
         }
 
-        private static function getReqFromStream(stream:Object):Object{
-            // XXX arik/bahaa: implement without loop
-            for (var n:String in req_list)
+        public function read_ack(bytes:uint):void{
+            bytesRead += bytes;
+        }
+
+        private function onprogress(e:ProgressEvent):void{
+            bytesTotal = e.bytesTotal;
+            bytesLoaded = e.bytesLoaded;
+            if (!_prev_js_progress || bytesLoaded==bytesTotal ||
+                bytesLoaded-_prev_js_progress > bytesTotal/5)
             {
-                if (req_list[n].stream===stream)
-                    return req_list[n];
+                _prev_js_progress = bytesLoaded;
+                JSAPI.postMessage('holaflash.streamProgress', {id: id,
+                    bytesLoaded: bytesLoaded, bytesTotal: bytesTotal});
             }
-            return null;
-        }
-
-        // XXX arik/bahaa: mv to org.hola.util
-        private static function jsPostMessage(id:String, data:Object):void{
-            if (!ZExternalInterface.avail())
+            if (!_jsurlstream)
                 return;
-            ExternalInterface.call('window.postMessage',
-                {id: id, ts: new Date().getTime(), data: data}, '*');
+            if (_jsurlstream.req_id!=_jsurlstream_id)
+                return ZErr.log("req", id, "switched"); // XXX bahaa: abort?
+            _jsurlstream.on_fragment_data({stream: this});
         }
 
-        private static function streamOpen(e:Event):void{
-            var req:Object = getReqFromStream(e.target);
-            if (!req)
-                return ZErr.log('req not found streamOpen');
-            jsPostMessage('holaflash.streamOpen', {id: req.id});
+        private function onstatus(e:HTTPStatusEvent):void{
+            JSAPI.postMessage('holaflash.streamHttpStatus',
+                {id: id, status: e.status});
         }
 
-        private static function streamProgress(e:ProgressEvent):void{
-            var req:Object = getReqFromStream(e.target);
-            if (!req)
-                return ZErr.log('req not found streamProgress');
-            req.bytesTotal = e.bytesTotal;
-            req.bytesLoaded = e.bytesLoaded;
-            if (!req.prevJSProgress || req.bytesLoaded==req.bytesTotal ||
-                req.bytesLoaded-req.prevJSProgress > (req.bytesTotal/5))
-            {
-                req.prevJSProgress = req.bytesLoaded;
-                jsPostMessage('holaflash.streamProgress', {id: req.id,
-                    bytesLoaded: e.bytesLoaded, bytesTotal: e.bytesTotal});
-            }
+        private function oncomplete(e:Event):void{
+            JSAPI.postMessage('holaflash.streamComplete',
+                {id: id, bytesTotal: bytesTotal});
         }
 
-        private static function streamHttpStatus(e:HTTPStatusEvent):void{
-            var req:Object = getReqFromStream(e.target);
-            if (!req)
-                return ZErr.log('req not found streamHttpStatus');
-            jsPostMessage('holaflash.streamHttpStatus', {id: req.id,
-                status: e.status});
-        }
-
-        private static function streamComplete(e:Event):void{
-            var req:Object = getReqFromStream(e.target);
-            if (!req)
-                return ZErr.log('req not found streamComplete');
-            jsPostMessage('holaflash.streamComplete', {id: req.id,
-                bytesTotal: req.bytesTotal});
-        }
-
-        private static function streamError(e:ErrorEvent):void{
-            var req:Object = getReqFromStream(e.target);
-            if (!req)
-                return ZErr.log('req not found streamError');
-            jsPostMessage('holaflash.streamError', {id: req.id});
-            remove(req.id);
+        private function onerror(e:ErrorEvent):void{
+            JSAPI.postMessage('holaflash.streamError', {id: id});
+            _delete();
         }
     }
 }

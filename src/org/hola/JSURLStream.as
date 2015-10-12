@@ -9,14 +9,14 @@ package org.hola {
     import flash.utils.ByteArray;
     import flash.utils.IDataInput;
 
-    public dynamic class JSURLStream extends URLStream {
+    public class JSURLStream extends URLStream {
         private static var js_api_inited : Boolean = false;
         private static var req_count : Number = 0;
         private static var reqs : Object = {};
         private var _connected : Boolean;
         private var _resource : ByteArray = new ByteArray();
         private var _hola_managed : Boolean = false;
-        private var _req_id : String;
+        public var req_id : String;
 
         public function JSURLStream(){
             _hola_managed = HSettings.hls_mode && ZExternalInterface.avail();
@@ -74,10 +74,10 @@ package org.hola {
         }
 
         override public function close() : void {
-            if (_hola_managed && reqs[_req_id])
+            if (_hola_managed && get(req_id))
             {
                 _delete();
-                _trigger('abortFragment', {req_id: _req_id});
+                _trigger('abortFragment', {req_id: req_id});
             }
             if (super.connected)
                 super.close();
@@ -85,36 +85,38 @@ package org.hola {
         }
 
         override public function load(request : URLRequest) : void {
-            if (_hola_managed && reqs[_req_id])
+            if (_hola_managed && get(req_id))
             {
                 _delete();
-                _trigger('abortFragment', {req_id: _req_id});
+                _trigger('abortFragment', {req_id: req_id});
             }
             _hola_managed = HSettings.hls_mode && ZExternalInterface.avail();
             req_count++;
-            _req_id = 'req'+req_count;
+            req_id = 'req'+req_count;
             if (!_hola_managed)
                 return super.load(request);
-            reqs[_req_id] = this;
+            reqs[req_id] = this;
             _resource = new ByteArray();
-            _trigger('requestFragment', {url: request.url, req_id: _req_id});
+            _trigger('requestFragment', {url: request.url, req_id: req_id});
             this.dispatchEvent(new Event(Event.OPEN));
         }
 
         private function onopen(e : Event) : void { _connected = true; }
 
-        private function append_data(data : IDataInput, total : uint) : void {
+        private function append_data(data : IDataInput, total : uint) : uint {
             var prev : uint = _resource.position;
             data.readBytes(_resource, _resource.length);
             _resource.position = prev;
+            var r : uint = _resource.length-prev;
             dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
                 false, _resource.length, total||_resource.length));
+            return r;
         }
 
-        private function on_fragment_data(o : Object) : void {
+        public function on_fragment_data(o : Object) : void {
             if (o.error)
                 return resourceLoadingError();
-            if (o.fetchBinReqId)
+            if (o.fetchBinReqId || o.stream)
                 return fetch_bin(o);
             if (o.data)
             {
@@ -128,12 +130,25 @@ package org.hola {
         }
 
         private function fetch_bin(o : Object) : void {
-            var fetchBinReq : Object;
-            if (!(fetchBinReq = FetchBin.req_list[o.fetchBinReqId]))
+            var stream : FetchBin = o.stream, n : int;
+            if (!stream && !(stream = FetchBin.get(o.fetchBinReqId)))
                 throw new Error('fetchBinReqId not found '+o.fetchBinReqId);
-            var stream : URLStream = fetchBinReq.stream;
-            if (stream.bytesAvailable)
-                append_data(stream, fetchBinReq.bytesTotal);
+            if (_resource.length<stream.bytesLoaded) // stream has new data
+            {
+                if ((n = _resource.length-stream.bytesRead)>0)
+                {
+                    // dispose of data we already have
+                    var t : ByteArray = new ByteArray();
+                    stream.readBytes(t, 0, n);
+                    stream.read_ack(n);
+                }
+                // read new data
+                stream.read_ack(append_data(stream, stream.bytesTotal));
+            }
+            if (_resource.length<stream.bytesTotal) // more data pending
+                return;
+            if (!o.fetchBinReqId) // cleanup only when called by JS
+                return;
             resourceLoadingSuccess();
             FetchBin.remove(o.fetchBinReqId);
         }
@@ -141,7 +156,7 @@ package org.hola {
         private static function onFragmentData(o : Object) : void {
             var stream : JSURLStream;
             try {
-                if (!(stream = reqs[o.req_id]))
+                if (!(stream = get(o.req_id)))
                     return ZErr.log('req_id not found '+o.req_id);
                 stream.on_fragment_data(o);
             } catch(err : Error){
@@ -153,8 +168,12 @@ package org.hola {
             }
         }
 
+        public static function get(id:String):JSURLStream{
+            return reqs[id];
+        }
+
         private function _delete() : void {
-            delete reqs[_req_id];
+            delete reqs[req_id];
         }
 
         protected function resourceLoadingError() : void {
