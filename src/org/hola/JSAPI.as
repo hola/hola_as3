@@ -28,5 +28,12 @@ package org.hola
         public static function version():String{
             return CONFIG::HOLA_AS3_VERSION;
         }
+
+        public static function postMessage(id:String, data:Object):void{
+            if (!ZExternalInterface.avail())
+                return;
+            ExternalInterface.call("window.postMessage",
+                {id: id, ts: new Date().getTime(), data: data}, "*");
+        }
     }
 }
