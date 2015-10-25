@@ -81,7 +81,7 @@ package org.hola {
             if (!_jsurlstream)
                 return;
             if (_jsurlstream.req_id!=_jsurlstream_id)
-                return ZErr.log("req", id, "switched"); // XXX bahaa: abort?
+                return ZErr.notice("req", id, "switched"); // XXX bahaa: abort?
             _jsurlstream.on_fragment_data({stream: this});
         }
 

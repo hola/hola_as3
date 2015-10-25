@@ -36,7 +36,7 @@ package org.hola {
 
         protected function _trigger(cb : String, data : Object) : void {
             if (!_hola_managed)
-                return ZErr.log('invalid trigger'); // XXX arik: ZErr.throw
+                return ZErr.err('invalid trigger'); // XXX arik: ZErr.throw
             ExternalInterface.call('window.hola_'+cb,
                 {objectID: ExternalInterface.objectID, data: data});
         }
@@ -157,10 +157,10 @@ package org.hola {
             var stream : JSURLStream;
             try {
                 if (!(stream = get(o.req_id)))
-                    return ZErr.log('req_id not found '+o.req_id);
+                    return ZErr.notice('req_id not found '+o.req_id);
                 stream.on_fragment_data(o);
             } catch(err : Error){
-                ZErr.log('Error in onFragmentData', ''+err,
+                ZErr.err('Error in onFragmentData', ''+err,
                     ''+err.getStackTrace());
                 if (stream)
                     stream.resourceLoadingError();
