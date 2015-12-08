@@ -97,7 +97,7 @@ package org.hola {
                 return super.load(request);
             reqs[req_id] = this;
             _resource = new ByteArray();
-            _trigger('requestFragment', {url: request.url, req_id: req_id});
+            _trigger('requestFragment', {url: request.url, req_id: req_id, context: request.data});
             this.dispatchEvent(new Event(Event.OPEN));
         }
 
