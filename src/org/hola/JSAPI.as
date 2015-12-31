@@ -30,10 +30,13 @@ package org.hola
         }
 
         public static function postMessage(id:String, data:Object):void{
+            postMessage2({id: id, ts: new Date().getTime(), data: data});
+        }
+
+        public static function postMessage2(data:Object):void{
             if (!ZExternalInterface.avail())
                 return;
-            ExternalInterface.call("window.postMessage",
-                {id: id, ts: new Date().getTime(), data: data}, "*");
+            ExternalInterface.call("window.postMessage", data, "*");
         }
     }
 }
