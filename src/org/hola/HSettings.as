@@ -5,6 +5,7 @@ package org.hola {
         private static var _inited : Boolean = false;
         public static var hls_mode : Boolean = false;
         public static var managed : Boolean = false;
+	public static var player_id : int = 1;
 
         public static function init() : void {
             if (_inited || !ZExternalInterface.avail())
@@ -20,11 +21,13 @@ package org.hola {
                 {
                     case "hls_mode": hls_mode = !!s[k]; break;
                     case "managed": managed = !!s[k]; break;
+		    case "player_id": player_id = +s[k]; break;
                 }
             }
             return {
                 hls_mode: hls_mode,
-                managed: managed
+                managed: managed,
+		player_id: player_id
             };
         }
     }
