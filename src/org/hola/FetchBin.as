@@ -3,6 +3,7 @@ package org.hola {
     import flash.external.ExternalInterface;
     import flash.net.URLRequest;
     import flash.net.URLStream;
+    import org.hola.HSettings;
 
     public class FetchBin extends URLStream {
         private static var inited:Boolean = false;
@@ -43,7 +44,7 @@ package org.hola {
         }
 
         public function FetchBin(o:Object){
-            id = 'fetch_bin_'+(free_id++);
+            id = 'fetch_bin_'+HSettings.player_id+'_'+(free_id++);
             req_list[id] = this;
             if ((_jsurlstream_id = o.jsurlstream_req_id))
                 _jsurlstream = JSURLStream.get(o.jsurlstream_req_id);
