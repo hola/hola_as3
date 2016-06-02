@@ -16,6 +16,7 @@ package org.hola {
         public var bytesLoaded:uint;
         public var bytesTotal:uint;
         public var bytesRead:uint;
+	public var is_rate: Boolean;
 
         public static function init():void{
             if (inited || !ZExternalInterface.avail())
@@ -44,7 +45,8 @@ package org.hola {
         }
 
         public function FetchBin(o:Object){
-            id = 'fetch_bin_'+HSettings.player_id+'_'+(free_id++);
+	    is_rate = !!o.rate;
+            id = 'fetch_bin_'+HSettings.gets('player_id')+'_'+(free_id++);
             req_list[id] = this;
             if ((_jsurlstream_id = o.jsurlstream_req_id))
                 _jsurlstream = JSURLStream.get(o.jsurlstream_req_id);
@@ -81,8 +83,13 @@ package org.hola {
             }
             if (!_jsurlstream)
                 return;
-            if (_jsurlstream.req_id!=_jsurlstream_id)
-                return ZErr.notice("req", id, "switched"); // XXX bahaa: abort?
+            // XXX marka/bahaa: jsurlstream.load() generates req_id, it can serve few fetch_bin quries
+	    // but one jsurlstream can support one URL, so if jsurlstream.load() called 2nd time we dont
+	    // expect answers for previous load(). Usually, it should be handled by JS-part - if one JS req
+	    // finished and provided data then all other parallel reqs should be cancelled.
+	    // One exception - rate requests, they should continue even when jsurlstream would receive full data
+	    if (_jsurlstream.req_id!=_jsurlstream_id)
+                return void (!is_rate && ZErr.notice("req", id, "switched"));
             _jsurlstream.on_fragment_data({stream: this});
         }
 
