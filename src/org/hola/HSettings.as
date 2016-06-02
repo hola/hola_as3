@@ -2,33 +2,38 @@ package org.hola {
     import flash.external.ExternalInterface;
 
     public class HSettings {
-        private static var _inited : Boolean = false;
-        public static var hls_mode : Boolean = false;
-        public static var managed : Boolean = false;
-	public static var player_id : int = 1;
+        private static var _inited: Boolean = false;
+	// defaults
+	private static var _dict: Object = {player_id: 1, mode: 'native'};
+	private static const _formats: Object = {
+	    player_id: 'number',
+	    mode: 'string'
+	};
 
-        public static function init() : void {
+        public static function init(): void
+	{
             if (_inited || !ZExternalInterface.avail())
                 return;
             _inited = true;
             ExternalInterface.addCallback("hola_settings", settings);
         }
 
-        private static function settings(s : Object) : Object {
-            for (var k : String in s)
+        public static function gets(name: String): *
+	{
+	    return _dict[name];
+	}
+
+        private static function settings(s: Object): Object
+	{
+            for (var k: String in s)
             {
-                switch (k)
-                {
-                    case "hls_mode": hls_mode = !!s[k]; break;
-                    case "managed": managed = !!s[k]; break;
-		    case "player_id": player_id = +s[k]; break;
-                }
+	        switch (_formats[k])
+		{
+		case 'number': _dict[k] = +s[k]; break;
+		case 'string': _dict[k] = ''+s[k]; break;
+		}
             }
-            return {
-                hls_mode: hls_mode,
-                managed: managed,
-		player_id: player_id
-            };
+	    return _dict;
         }
     }
 }

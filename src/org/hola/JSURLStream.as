@@ -19,7 +19,7 @@ package org.hola {
         public var req_id : String;
 
         public function JSURLStream(){
-            _hola_managed = HSettings.hls_mode && ZExternalInterface.avail();
+            _hola_managed = (HSettings.gets('mode')!='native') && ZExternalInterface.avail();
             addEventListener(Event.OPEN, onopen);
             super();
             if (!ZExternalInterface.avail() || js_api_inited)
@@ -90,7 +90,7 @@ package org.hola {
                 _delete();
                 _trigger('abortFragment', {req_id: req_id});
             }
-            _hola_managed = HSettings.hls_mode && ZExternalInterface.avail();
+            _hola_managed = (HSettings.gets('mode')!='native') && ZExternalInterface.avail();
             req_count++;
             req_id = 'req'+req_count;
             if (!_hola_managed)
