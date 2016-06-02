@@ -64,7 +64,7 @@ package org.hola {
         }
 
         private function onopen(e:Event):void{
-            JSAPI.postMessage('holaflash.streamOpen', {id: id});
+            JSAPI.postMessage('holaflash.streamOpen', {fb_id: id});
         }
 
         public function read_ack(bytes:uint):void{
@@ -78,7 +78,7 @@ package org.hola {
                 bytesLoaded-_prev_js_progress > bytesTotal/5)
             {
                 _prev_js_progress = bytesLoaded;
-                JSAPI.postMessage('holaflash.streamProgress', {id: id,
+                JSAPI.postMessage('holaflash.streamProgress', {fb_id: id,
                     bytesLoaded: bytesLoaded, bytesTotal: bytesTotal});
             }
             if (!_jsurlstream)
@@ -95,16 +95,16 @@ package org.hola {
 
         private function onstatus(e:HTTPStatusEvent):void{
             JSAPI.postMessage('holaflash.streamHttpStatus',
-                {id: id, status: e.status});
+                {fb_id: id, status: e.status});
         }
 
         private function oncomplete(e:Event):void{
             JSAPI.postMessage('holaflash.streamComplete',
-                {id: id, bytesTotal: bytesTotal});
+                {fb_id: id, bytesTotal: bytesTotal});
         }
 
         private function onerror(e:ErrorEvent):void{
-            JSAPI.postMessage('holaflash.streamError', {id: id});
+            JSAPI.postMessage('holaflash.streamError', {fb_id: id});
             _delete();
         }
     }

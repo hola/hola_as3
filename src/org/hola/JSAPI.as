@@ -33,7 +33,10 @@ package org.hola
 	{
             if (!ZExternalInterface.avail())
                 return;
-            ExternalInterface.call("window.postMessage", {id: id, player_id: HSettings.gets("player_id"), data: data}, "*");
+            data = data||{};
+	    data.id = id;
+	    data.player_id = HSettings.gets("player_id");
+            ExternalInterface.call("window.postMessage", data, "*");
         }
     }
 }
