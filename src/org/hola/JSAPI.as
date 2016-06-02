@@ -29,7 +29,7 @@ package org.hola
             return CONFIG::HOLA_AS3_VERSION;
         }
 
-        public static function postMessage(id: String, data: Object):void
+        public static function postMessage(id: String, data: Object = undefined): void
 	{
             if (!ZExternalInterface.avail())
                 return;
