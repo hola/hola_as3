@@ -21,7 +21,7 @@ package org.hola
 	{
             setTimeout(function(): void
 	    {
-	        postMessage('hola_timeout', {timeout_id: id});
+	        postMessage('hola.timeout', {timeout_id: id});
 	    }, ms);
         }
 

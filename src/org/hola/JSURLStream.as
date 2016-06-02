@@ -37,8 +37,7 @@ package org.hola {
         protected function _trigger(cb : String, data : Object) : void {
             if (!_hola_managed)
                 return ZErr.err('invalid trigger'); // XXX arik: ZErr.throw
-            ExternalInterface.call('window.hola_'+cb,
-                {objectID: ExternalInterface.objectID, data: data});
+            JSAPI.postMessage(cb, data);
         }
 
         override public function get connected() : Boolean {
@@ -77,7 +76,7 @@ package org.hola {
             if (_hola_managed && get(req_id))
             {
                 _delete();
-                _trigger('abortFragment', {req_id: req_id});
+                _trigger('hola.abortFragment', {req_id: req_id});
             }
             if (super.connected)
                 super.close();
@@ -88,7 +87,7 @@ package org.hola {
             if (_hola_managed && get(req_id))
             {
                 _delete();
-                _trigger('abortFragment', {req_id: req_id});
+                _trigger('hola.abortFragment', {req_id: req_id});
             }
             _hola_managed = (HSettings.gets('mode')!='native') && ZExternalInterface.avail();
             req_count++;
@@ -97,7 +96,7 @@ package org.hola {
                 return super.load(request);
             reqs[req_id] = this;
             _resource = new ByteArray();
-            _trigger('requestFragment', {url: request.url, req_id: req_id, context: request.data});
+            _trigger('hola.requestFragment', {url: request.url, req_id: req_id, context: request.data});
             this.dispatchEvent(new Event(Event.OPEN));
         }
 
