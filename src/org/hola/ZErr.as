@@ -30,37 +30,37 @@ function(l, s) {
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'crit', msg].concat(rest));
+                [_sendScript, 'crit', msg+' '+rest.join(' ')]);
         }
         public static function err(msg:String, ...rest:Array):void{
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'err', msg].concat(rest));
+                [_sendScript, 'err', msg+' '+rest.join(' ')]);
         }
         public static function warn(msg:String, ...rest:Array):void{
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'warn', msg].concat(rest));
+                [_sendScript, 'warn', msg+' '+rest.join(' ')]);
         }
         public static function notice(msg:String, ...rest:Array):void{
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'notice', msg].concat(rest));
+                [_sendScript, 'notice', msg+' '+rest.join(' ')]);
         }
         public static function info(msg:String, ...rest:Array):void{
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'info', msg].concat(rest));
+                [_sendScript, 'info', msg+' '+rest.join(' ')]);
         }
         public static function debug(msg:String, ...rest:Array):void{
             if (!ZExternalInterface.avail())
                 return;
             ExternalInterface.call.apply(ExternalInterface,
-                [_sendScript, 'debug', msg].concat(rest));
+                [_sendScript, 'debug', msg+' '+rest.join(' ')]);
         }
     }
 }
