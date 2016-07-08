@@ -103,10 +103,11 @@ package org.hola {
         private function onopen(e : Event) : void { _connected = true; }
 
         private function append_data(data : IDataInput, total : uint) : uint {
-            var prev : uint = _resource.position;
+            var prev_pos : uint = _resource.position;
+            var prev_len : uint = _resource.length;
             data.readBytes(_resource, _resource.length);
-            _resource.position = prev;
-            var r : uint = _resource.length-prev;
+            _resource.position = prev_pos;
+            var r : uint = _resource.length-prev_len;
             dispatchEvent(new ProgressEvent(ProgressEvent.PROGRESS, false,
                 false, _resource.length, total||_resource.length));
             return r;
