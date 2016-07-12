@@ -5,7 +5,7 @@ fi
 
 cd $(dirname $(realpath $0))
 
-VERSION="0.0.12"
+VERSION="0.0.13"
 OPT="-use-network=false -optimize=true \
     -define=CONFIG::HOLA_AS3_VERSION,"\"$VERSION\"""
 

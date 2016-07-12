@@ -4,9 +4,10 @@ package org.hola {
     public class HSettings {
         private static var _inited: Boolean = false;
 	// defaults
-	private static var _dict: Object = {player_id: 1, mode: 'native'};
+	private static var _dict: Object = {
+	    player_id: ExternalInterface.objectID, mode: 'native'};
 	private static const _formats: Object = {
-	    player_id: 'number',
+	    player_id: 'string',
 	    mode: 'string'
 	};
 
