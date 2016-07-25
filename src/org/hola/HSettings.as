@@ -60,7 +60,7 @@ package org.hola {
 		if (!arr)
 		    continue;
 		for each (var cb: Function in arr)
-		    cb(_dict[k], k);
+		    cb(_dict[k]);
             }
 	    return _dict;
         }
