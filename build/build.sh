@@ -1,11 +1,12 @@
 #!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 if [ -z "$FLEXPATH" ]; then
-    FLEXPATH=sdks/apache-flex-sdk-4.14.1-bin
+    FLEXPATH=$DIR/sdks/apache-flex-sdk-4.14.1-bin
 fi
 
-cd $(dirname $(realpath $0))
+cd $DIR
 
-VERSION="0.0.13"
+VERSION="0.0.14"
 OPT="-use-network=false -optimize=true \
     -define=CONFIG::HOLA_AS3_VERSION,"\"$VERSION\"""
 

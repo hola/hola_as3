@@ -17,10 +17,19 @@ package org.hola {
         private var _resource : ByteArray = new ByteArray();
         private var _hola_managed : Boolean = false;
         public var req_id : String;
+	private var _prev_js_progress: Number;
+        public var bytesLoaded: Number;
+        public var bytesTotal: Number;
+        public var bytesRead: Number;
 
         public function JSURLStream(){
-            _hola_managed = (HSettings.gets('mode')!='native') && ZExternalInterface.avail();
+            _hola_managed = HSettings.gets('mode')=='adaptive' && ZExternalInterface.avail();
             addEventListener(Event.OPEN, onopen);
+            addEventListener(ProgressEvent.PROGRESS, onprogress);
+            addEventListener(HTTPStatusEvent.HTTP_STATUS, onstatus);
+            addEventListener(Event.COMPLETE, oncomplete);
+            addEventListener(IOErrorEvent.IO_ERROR, onerror);
+            addEventListener(SecurityErrorEvent.SECURITY_ERROR, onerror);	    
             super();
             if (!ZExternalInterface.avail() || js_api_inited)
                 return;
@@ -89,7 +98,7 @@ package org.hola {
                 _delete();
                 _trigger('hola.abortFragment', {req_id: req_id});
             }
-            _hola_managed = (HSettings.gets('mode')!='native') && ZExternalInterface.avail();
+            _hola_managed = HSettings.gets('mode')=='adaptive' && ZExternalInterface.avail();
             req_count++;
             req_id = 'req'+req_count;
             if (!_hola_managed)
@@ -100,7 +109,45 @@ package org.hola {
             this.dispatchEvent(new Event(Event.OPEN));
         }
 
-        private function onopen(e : Event) : void { _connected = true; }
+        private function onopen(e: Event): void
+	{
+	    _connected = true;
+	    if (HSettings.gets('mode')=='hola_adaptive')
+	        JSAPI.postMessage('holaflash.streamOpen', {fb_id: req_id});
+	}
+
+        private function onprogress(e: ProgressEvent): void
+	{
+	    if (HSettings.gets('mode')!='hola_adaptive')
+	        return;
+            bytesTotal = e.bytesTotal;
+            bytesLoaded = e.bytesLoaded;
+            if (!_prev_js_progress || bytesLoaded==bytesTotal ||
+                bytesLoaded-_prev_js_progress > bytesTotal/5)
+            {
+                _prev_js_progress = bytesLoaded;
+                JSAPI.postMessage('holaflash.streamProgress', {fb_id: req_id,
+                    bytesLoaded: bytesLoaded, bytesTotal: bytesTotal});
+            }
+        }
+
+        private function onstatus(e: HTTPStatusEvent): void
+	{
+	    if (HSettings.gets('mode')=='hola_adaptive')
+                JSAPI.postMessage('holaflash.streamHttpStatus', {fb_id: req_id, status: e.status});
+        }
+
+        private function oncomplete(e: Event): void
+	{
+	    if (HSettings.gets('mode')=='hola_adaptive')
+                JSAPI.postMessage('holaflash.streamComplete', {fb_id: req_id, bytesTotal: bytesTotal});
+        }
+
+        private function onerror(e: ErrorEvent): void
+	{
+	    if (HSettings.gets('mode')=='hola_adaptive')
+                JSAPI.postMessage('holaflash.streamError', {fb_id: req_id});
+        }	
 
         private function append_data(data : IDataInput, total : uint) : uint {
             var prev_pos : uint = _resource.position;
